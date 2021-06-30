@@ -64,4 +64,4 @@ jobs:
           # Strip "v" prefix from tag name
           [[ "${{ github.ref }}" == "refs/tags/"* ]] && CI_VERSION=$(echo ${REF_VERSION} | sed -e 's/^v//')
 
-          porter build --version $CI_VERSION && porter publish --tag $CI_VERSION
+          porter build --version $CI_VERSION && porter publish
