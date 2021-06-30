@@ -1,11 +1,11 @@
-name: CI
+name: porter-bundle-publish
 
-# On controls when the action will run. This triggers the workflow on push event for the main branch.
-# Can change push to pull_request to run when a PR is made.
-# You can also change the branch name from main to the name of the branch you want the workflow to run on.
 on:
   push:
-    branches: [main]
+    branches:
+      - "*"
+    tags:
+      - v*
 
 # Set up environment variables needed for the bundle.
 # If these are sensitive, they should be set as secrets in the repository.
@@ -17,6 +17,7 @@ env:
 jobs:
   # Publish is the name of this job.
   publish:
+    if: github.event_name == 'push'
     # Specify the type of machine you want the job to run on. We chose ubuntu-latest.
     runs-on: ubuntu-latest
     steps:
@@ -46,7 +47,21 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.CR_TOKEN }}
+      - name: get porter bundle version
+        id: getBundleVersion
+        uses: mikefarah/yq@v4.9.6
+        with:
+          cmd: yq e '.version' porter.yaml
+
       # Run publish.
       # If any of the porter commands above fail, the workflow will stop, so your bundle will only be published if it works properly.
       - name: Porter Publish
-        run: porter publish
+        run: |
+          # Strip git ref prefix from version
+          BUNDLE_VERSION=${{ steps.getBundleVersion.outputs.result }}
+          REF_VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          CI_VERSION=${BUNDLE_VERSION}-${REF_VERSION}
+          # Strip "v" prefix from tag name
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && CI_VERSION=$(echo ${REF_VERSION} | sed -e 's/^v//')
+
+          porter build --version $CI_VERSION && porter publish
