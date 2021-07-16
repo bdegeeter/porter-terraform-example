@@ -2,7 +2,6 @@ mixins:
   - gcloud
   - terraform:
       clientVersion: 1.0.0
-  - exec
 
 name: porter-terraform-example
 version: 0.1.1
@@ -16,56 +15,52 @@ parameters:
     source:
       output: tfstate
 
+  - name: tfvars
+    type: file
+    path: /cnab/app/terraform/terraform.tfvars.json
+    source:
+      output: tfvars
+
   - name: myvar
     type: string
     default: "porter example"
-    env: TF_VAR_myvar
 
   - name: username
     type: string
     default: porter-default
-    env: TF_VAR_username
+    applyTo:
+      - install
 
   - name: gcp_project_id
     type: string
-    env: TF_VAR_gcp_project_id
-    source:
-      output: gcp_project_id
-    # override the default applyTo for parameters with an output source
-    # so that it is required for install
     applyTo:
       - install
-      # User doesn't have to pass this in for subsequent actions,
-      # porter will inject it for upgrade and uninstall
-      - upgrade
-      - uninstall
 
   - name: gcp_location
     type: string
     default: us-central1
-    env: TF_VAR_gcp_location
+    applyTo:
+      - install
 
   - name: gcp_region
     type: string
     default: us-central1-a
-    env: TF_VAR_gcp_region
+    applyTo:
+      - install
+
 
 outputs:
   - name: tfstate
     type: file
     path: /cnab/app/terraform/terraform.tfstate
 
+  - name: tfvars
+    type: file
+    path: /cnab/app/terraform/terraform.tfvars.json
+
   - name: myvar
     type: string
     applyTo:
-      - install
-
-  - name: gcp_project_id
-    type: string
-    path: /cnab/app/gcp_project_id
-    applyTo:
-      # Tell porter to remember this value for subsequent actions
-      # after install, re-injecting it back into the bundle
       - install
 
   - name: kubeconfig_content
@@ -79,12 +74,6 @@ credentials:
     path: /cnab/app/gcloud.json
 
 install:
-  - exec:
-      description: "stop-gap parameter persist"
-      command: ./add-output.sh
-      arguments:
-        - "{{ bundle.parameters.gcp_project_id }}"
-        - /cnab/app/gcp_project_id
   - gcloud:
       description: "Authenticate"
       groups:
@@ -94,6 +83,13 @@ install:
         key-file: gcloud.json
   - terraform:
       description: "Install Terraform assets"
+      createVarFile: true
+      vars:
+        myvar: "{{ bundle.parameters.myvar }}"
+        username: "{{ bundle.parameters.username }}"
+        gcp_project_id: "{{ bundle.parameters.gcp_project_id }}"
+        gcp_region: "{{ bundle.parameters.gcp_region }}"
+        gcp_location: "{{ bundle.parameters.gcp_location }}"
       outputs:
         - name: myvar
         - name: kubeconfig_content
